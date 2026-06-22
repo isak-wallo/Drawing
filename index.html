@@ -28,9 +28,8 @@
             background-color: #000;
         }
         /* #app sätts av JS till hela skärmens storlek och ligger fast i övre
-           vänstra hörnet, så ritytan ligger BAKOM statusfältet. Skulle fältet
-           ändå knuffa viewporten skjuter JS upp appen lika mycket (transform)
-           så att den stannar kvar – statusfältet lägger sig då bara ovanpå. */
+           vänstra hörnet, så ritytan ligger bakom statusfältet och behåller sin
+           storlek även när systemfälten visas. */
         #app {
             position: fixed;
             top: 0;
@@ -40,7 +39,6 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            transform-origin: top left;
         }
         @media (orientation: landscape) {
             #app {
@@ -253,9 +251,8 @@
 
     // Layoutlås: appen sätts till hela skärmens storlek (största viewporten vi
     // sett i nuvarande orientering) och ligger fast i övre vänstra hörnet, så
-    // ritytan ligger BAKOM statusfältet. Skulle fältet ändå knuffa viewporten
-    // skjuter vi upp appen lika mycket med en transform så att den stannar kvar
-    // och fältet bara lägger sig ovanpå. Vid rotation nollställs låset.
+    // ritytan ligger bakom statusfältet och behåller sin storlek. Vid rotation
+    // nollställs låset för den nya orienteringen.
     let lockedW = 0, lockedH = 0;
     let lockLandscape = null;
 
@@ -277,17 +274,6 @@
         if (app) {
             app.style.width = lockedW + 'px';
             app.style.height = lockedH + 'px';
-
-            // Kompensera för att statusfältet knuffar ner viewporten.
-            const vv = window.visualViewport;
-            let offTop = vv ? vv.offsetTop : 0;
-            const offLeft = vv ? vv.offsetLeft : 0;
-            // Saknar webbvyn offset antar vi att en lodrät krympning kommer
-            // uppifrån (statusfältet) och skjuter upp appen lika mycket.
-            if (!offTop && lockedH > h + 1) offTop = lockedH - h;
-            app.style.transform = (offTop || offLeft)
-                ? 'translate(' + (-offLeft) + 'px,' + (-offTop) + 'px)'
-                : '';
         }
         resizeCanvas();
     }
@@ -515,7 +501,6 @@
     window.addEventListener('orientationchange', applyLayout);
     if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', applyLayout);
-        window.visualViewport.addEventListener('scroll', applyLayout);
     }
 
     applyLayout();

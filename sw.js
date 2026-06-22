@@ -1,6 +1,6 @@
-// Höj VERSION (v2 -> v3 osv.) varje gång du laddar upp nya filer,
+// Höj VERSION (v3 -> v4 osv.) varje gång du laddar upp nya filer,
 // så hämtas och cachas den nya versionen säkert.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'rita-' + VERSION;
 
 const ASSETS = [
@@ -34,8 +34,13 @@ self.addEventListener('activate', function (e) {
   );
 });
 
+// Låter sidan be en väntande service worker att ta över direkt.
+self.addEventListener('message', function (e) {
+  if (e.data === 'SKIP_WAITING') self.skipWaiting();
+});
+
 // Hämta: nätet först (så uppdateringar syns), cachen som reserv offline.
-// Endast egna GET-anrop hanteras och cachen hålls uppdaterad i bakgrunden.
+// Endast egna GET-anrop hanteras, och bara lyckade svar cachas.
 self.addEventListener('fetch', function (e) {
   var req = e.request;
   if (req.method !== 'GET') return;
@@ -44,8 +49,10 @@ self.addEventListener('fetch', function (e) {
   e.respondWith(
     fetch(req)
       .then(function (res) {
-        var copy = res.clone();
-        caches.open(CACHE).then(function (c) { c.put(req, copy); }).catch(function () {});
+        if (res && res.ok) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(req, copy); }).catch(function () {});
+        }
         return res;
       })
       .catch(function () {

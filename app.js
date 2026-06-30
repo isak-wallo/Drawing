@@ -64,20 +64,38 @@ document.addEventListener('DOMContentLoaded', () => {
         if (W < H) {
             vCtx.drawImage(paper, 0, 0, W, H);
         } else {
-            vCtx.save();
-            vCtx.translate(0, H);
-            vCtx.rotate(-Math.PI / 2);
-            vCtx.scale(H / paper.width, W / paper.height);
+            vCtx.setTransform(0, -(H / paper.width), W / paper.height, 0, 0, H);
             vCtx.drawImage(paper, 0, 0);
-            vCtx.restore();
+            vCtx.setTransform(1, 0, 0, 1, 0, 0);
         }
     }
 
     let renderPending = false;
+    let pendingPoints = [];
+
+    function flushPendingStrokes() {
+        const len = pendingPoints.length;
+        if (len === 0) return;
+        pCtx.beginPath();
+        pCtx.strokeStyle = currentColor;
+        pCtx.lineWidth = lineWidth;
+        pCtx.lineCap = 'round';
+        pCtx.lineJoin = 'round';
+        pCtx.moveTo(lastX, lastY);
+        for (let i = 0; i < len; i += 2) {
+            pCtx.lineTo(pendingPoints[i], pendingPoints[i + 1]);
+        }
+        pCtx.stroke();
+        lastX = pendingPoints[len - 2];
+        lastY = pendingPoints[len - 1];
+        pendingPoints.length = 0;
+    }
+
     function scheduleRender() {
         if (!renderPending) {
             renderPending = true;
             requestAnimationFrame(() => {
+                flushPendingStrokes();
                 render();
                 renderPending = false;
             });
@@ -115,22 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
         resetClearButton();
     }
 
-    // Drar strecket vidare till nästa punkt.
+    // Buffrar punkten och schemalägger rendering nästa frame.
     function extendStrokeTo(coords) {
         if (!isDrawing) return;
-
-        pCtx.beginPath();
-        pCtx.strokeStyle = currentColor;
-        pCtx.lineWidth = lineWidth;
-        pCtx.lineCap = 'round';
-        pCtx.lineJoin = 'round';
-        pCtx.moveTo(lastX, lastY);
-        pCtx.lineTo(coords.x, coords.y);
-        pCtx.stroke();
-
-        lastX = coords.x;
-        lastY = coords.y;
-
+        pendingPoints.push(coords.x, coords.y);
         scheduleRender();
     }
 
@@ -142,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isDrawing) extendStrokeTo(getPaperCoordsXY(e.clientX, e.clientY));
     }
     function onMouseUp() {
+        flushPendingStrokes();
         isDrawing = false;
     }
 
@@ -173,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function onTouchEnd(e) {
         if (activeTouchId === null) return;
         if (findTouch(e.changedTouches, activeTouchId)) {
+            flushPendingStrokes();
             activeTouchId = null;
             isDrawing = false;
         }
@@ -282,16 +290,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     viewCanvas.addEventListener('touchstart', onTouchStart, { passive: false });
     viewCanvas.addEventListener('touchmove', onTouchMove, { passive: false });
-    window.addEventListener('touchend', onTouchEnd);
-    window.addEventListener('touchcancel', onTouchEnd);
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
-    window.addEventListener('resize', applyLayout);
-    window.addEventListener('orientationchange', applyLayout);
+    // Debounca layout-events så snabba resize/rotation-serier
+    // bara triggar en enda omräkning per frame.
+    let layoutPending = false;
+    function debouncedLayout() {
+        if (!layoutPending) {
+            layoutPending = true;
+            requestAnimationFrame(() => {
+                applyLayout();
+                layoutPending = false;
+            });
+        }
+    }
+    window.addEventListener('resize', debouncedLayout);
+    window.addEventListener('orientationchange', debouncedLayout);
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) resetClearButton();
     });
     if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', applyLayout);
+        window.visualViewport.addEventListener('resize', debouncedLayout);
     }
 
     applyLayout();

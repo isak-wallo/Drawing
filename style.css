@@ -75,6 +75,7 @@ body {
     position: relative;
     background-color: #fff;
     touch-action: none;
+    contain: strict;
 }
 @media (orientation: landscape) {
     #canvas-container {

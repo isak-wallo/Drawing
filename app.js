@@ -246,8 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function isInstalledApp() {
-        return window.matchMedia('(display-mode: fullscreen)').matches
-            || window.matchMedia('(display-mode: standalone)').matches
+        return window.matchMedia('(display-mode: standalone)').matches
             || window.navigator.standalone === true;
     }
 
@@ -268,11 +267,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const colorBoxes = document.querySelectorAll('.color-box');
     colorBoxes.forEach(box => {
+        // Click för mus, touchstart för multi-touch under ritning
         box.addEventListener('click', function() {
             const color = this.getAttribute('data-color');
             selectColor(color, this);
         });
+        box.addEventListener('touchstart', function(e) {
+            e.stopPropagation(); // Hindra canvas touch-hantering
+            const color = this.getAttribute('data-color');
+            selectColor(color, this);
+        }, { passive: true });
     });
+
+    // Systemknappar (undo, clear) - även touchstart för multi-touch
+    const sysButtons = document.querySelectorAll('.sys-btn');
+    sysButtons.forEach(btn => {
+        btn.addEventListener('touchstart', function(e) {
+            e.stopPropagation();
+        }, { passive: true });
+    });
+
+    // Back-button hantering: förhindra att man hamnar på "svart startsida"
+    // Push state vid start så back-button stannar i appen
+    history.pushState(null, '', location.href);
+    window.addEventListener('popstate', (e) => {
+        history.pushState(null, '', location.href);
+        // Valfritt: visa start-overlay istället för att lämna appen
+        // document.getElementById('start-overlay').style.display = 'flex';
+    });
+
+    // Lås orientering till porträtt (kräver fullscreen/standalone)
+    if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('portrait').catch(() => {});
+    }
 
     document.addEventListener('fullscreenchange', () => {
         if (isInstalledApp()) return; // Installerad app: ingen startskärm
@@ -311,19 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (document.hidden) resetClearButton();
     });
     if (window.visualViewport) {
-        let lastViewportHeight = window.visualViewport.height;
-        window.visualViewport.addEventListener('resize', () => {
-            const vp = window.visualViewport;
-            const heightDiff = Math.abs(vp.height - lastViewportHeight);
-            // Ignorera små höjdändringar (≈ statusfältshöjd 24-48px) som orsakas
-            // när statusfältet dras ner/upp i fullscreen-läge.
-            if (heightDiff < 60) {
-                lastViewportHeight = vp.height;
-                return;
-            }
-            lastViewportHeight = vp.height;
-            debouncedLayout();
-        });
+        window.visualViewport.addEventListener('resize', debouncedLayout);
     }
 
     applyLayout();

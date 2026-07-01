@@ -1,6 +1,14 @@
 * {
     box-sizing: border-box;
 }
+
+/* Safe-area för statusfält (standalone-läge) */
+@supports (padding-top: env(safe-area-inset-top)) {
+    #app {
+        padding-top: env(safe-area-inset-top);
+    }
+}
+
 /* Naglar fast dokumentet så att systemfälten inte kan scrolla/trycka
    appen ur läge. */
 html, body {

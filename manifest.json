@@ -3,8 +3,8 @@
   "short_name": "Kludd",
   "start_url": ".",
   "scope": ".",
-  "display": "fullscreen",
-  "orientation": "any",
+  "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#000000",
   "theme_color": "#000000",
   "icons": [

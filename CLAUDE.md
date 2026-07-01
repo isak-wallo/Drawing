@@ -36,6 +36,16 @@ plattan fastnar på gammal kod (offlinear appen = gammal cache sitter kvar).
 När en ny SW installerar medan appen är öppen görs en automatisk
 `location.reload()` (se slutet av `app.js`).
 
+### Arbetsflöde: alltid commit + push vid ny version
+När du gjort en ändring som ska nå plattan (i regel varje gång du ändrat
+app-kod eller bumpat `VERSION` i `sw.js`): **commit och push till `main` på
+GitHub direkt**, utan att fråga. Ägaren testar från GitHub Pages och förväntar
+sig att nya versioner ligger ute. Så blir det per automatik även i kommande
+sessioner. (Undantag: ren utforskning/lokala experiment som inte ska testas
+på plattan — då vänta med push tills ägaren säger till.) På `main`-branchen
+gäller: commit-meddelanden på svenska, signera med
+`Co-Authored-By: Claude <noreply@anthropic.com>`.
+
 ## Filer
 
 | Fil | Roll |

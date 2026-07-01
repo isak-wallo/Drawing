@@ -1,2 +1,22 @@
-# Claude Code local settings
+# Claude Code lokala inställningar
 .claude/
+
+# OS / skrivbords-skräp
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editor / tillfälliga filer
+*.swp
+*.swo
+*~
+~$*
+
+# Dropbox
+.dropbox
+.dropbox.attr
+*.dropbox
+
+# Övrigt tillfälligt
+*.tmp
+*.log

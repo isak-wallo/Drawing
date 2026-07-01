@@ -1,6 +1,8 @@
 {
   "name": "Kludd",
   "short_name": "Kludd",
+  "description": "En enkel ritapp för barn",
+  "lang": "sv",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

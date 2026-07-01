@@ -117,44 +117,93 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Ritar startpunkten (en prick) och påbörjar ett nytt streck.
-    function beginStrokeAt(coords) {
-        isDrawing = true;
-        pushUndo();
+    // --- Strökhantering (uppskjuten prick) ---
+    // Ritar INTE en prick direkt vid touchstart. Ett finger som bara vilar
+    // (ner och upp utan att rör sig, t.ex. vilande hand) ska inte lämna något
+    // märke. Först när fingret faktiskt rör sig ritas ett streck – starten
+    // täcks av rund lineCap så den ser ut som en prick. En ren dutt (ett
+    // ensamt finger: ner + upp utan flytt) ger en prick först vid touchend.
+    let activeTouchId = null;
+    let strokeMoved = false;         // har den aktiva touchen rört sig (ritat)?
+    let strokeUndoPushed = false;    // har undo sparats för aktuell strök?
+    let strokeHadOther = false;      // fanns ett annat finger nere under denna touch?
+    let strokeStartX = 0, strokeStartY = 0;          // start på papperet
+    let strokeStartClientX = 0, strokeStartClientY = 0; // start på skärmen (för jittertröskel)
+
+    // Hur många skärm-px ett finger måste flyttas för att räknas som ritande
+    // (större än ren darrning). Tunbar vid behov.
+    const MOVE_THRESHOLD = 4;
+
+    function ensureStrokeUndo() {
+        if (!strokeUndoPushed) {
+            pushUndo();
+            strokeUndoPushed = true;
+        }
+    }
+
+    // Påbörjar en ny strök vid coords. Ritar inget ännu. Om ett annat finger
+    // redan ritar/vilar spolas dess buffrade punkter först, så inget streck
+    // dras från det fingret till den nya startpunkten.
+    function startStrokeAt(coords, hadOther, clientX, clientY) {
+        flushPendingStrokes();
         lastX = coords.x;
         lastY = coords.y;
-
-        pCtx.beginPath();
-        pCtx.fillStyle = currentColor;
-        pCtx.arc(lastX, lastY, lineWidth / 2, 0, Math.PI * 2);
-        pCtx.fill();
-
-        scheduleRender();
+        strokeStartX = coords.x;
+        strokeStartY = coords.y;
+        strokeStartClientX = clientX;
+        strokeStartClientY = clientY;
+        strokeMoved = false;
+        strokeUndoPushed = false;
+        strokeHadOther = hadOther;
+        pendingPoints.length = 0;
+        isDrawing = true;
         resetClearButton();
     }
 
-    // Buffrar punkten och schemalägger rendering nästa frame.
-    function extendStrokeTo(coords) {
+    // Buffrar punkten och schemalägger rendering nästa frame. Flyttningar
+    // mindre än MOVE_THRESHOLD (jitter från vilande finger) ignoreras.
+    function extendStrokeTo(coords, clientX, clientY) {
         if (!isDrawing) return;
+        if (!strokeMoved) {
+            const dx = clientX - strokeStartClientX;
+            const dy = clientY - strokeStartClientY;
+            if (dx * dx + dy * dy < MOVE_THRESHOLD * MOVE_THRESHOLD) return;
+            strokeMoved = true;
+            ensureStrokeUndo();
+        }
         pendingPoints.push(coords.x, coords.y);
         scheduleRender();
     }
 
-    // --- Mus (för test i webbläsare på dator) ---
-    function onMouseDown(e) {
-        beginStrokeAt(getPaperCoordsXY(e.clientX, e.clientY));
-    }
-    function onMouseMove(e) {
-        if (isDrawing) extendStrokeTo(getPaperCoordsXY(e.clientX, e.clientY));
-    }
-    function onMouseUp() {
+    // Avslutar den aktiva ströken. En ren dutt (ingen flytt, ensamt finger)
+    // ritar en prick vid startpunkten; ett vilande finger i multitouch ritar
+    // ingenting (strokeHadOther true).
+    function endStroke() {
         flushPendingStrokes();
+        if (!strokeMoved && !strokeHadOther) {
+            ensureStrokeUndo();
+            pCtx.beginPath();
+            pCtx.fillStyle = currentColor;
+            pCtx.arc(strokeStartX, strokeStartY, lineWidth / 2, 0, Math.PI * 2);
+            pCtx.fill();
+            render();
+        }
         isDrawing = false;
     }
 
-    // --- Touch med stöd för flera fingrar samtidigt ---
-    let activeTouchId = null;
+    // --- Mus (för test i webbläsare på dator) ---
+    function onMouseDown(e) {
+        startStrokeAt(getPaperCoordsXY(e.clientX, e.clientY), false, e.clientX, e.clientY);
+    }
+    function onMouseMove(e) {
+        if (isDrawing) extendStrokeTo(getPaperCoordsXY(e.clientX, e.clientY), e.clientX, e.clientY);
+    }
+    function onMouseUp() {
+        if (!isDrawing) return;
+        endStroke();
+    }
 
+    // --- Touch med stöd för flera fingrar samtidigt ---
     function findTouch(touchList, id) {
         for (let i = 0; i < touchList.length; i++) {
             if (touchList[i].identifier === id) return touchList[i];
@@ -165,8 +214,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function onTouchStart(e) {
         if (e.cancelable) e.preventDefault();
         const t = e.changedTouches[e.changedTouches.length - 1];
+        // Om ett finger redan är aktivt (vilande eller ritande) har den nya
+        // touchen ett annat finger nere samtidigt -> ingen prick vid dutt.
+        const hadOther = (activeTouchId !== null);
         activeTouchId = t.identifier;
-        beginStrokeAt(getPaperCoordsXY(t.clientX, t.clientY));
+        startStrokeAt(getPaperCoordsXY(t.clientX, t.clientY), hadOther, t.clientX, t.clientY);
     }
 
     function onTouchMove(e) {
@@ -174,15 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const t = findTouch(e.changedTouches, activeTouchId);
         if (!t) return;
         if (e.cancelable) e.preventDefault();
-        extendStrokeTo(getPaperCoordsXY(t.clientX, t.clientY));
+        extendStrokeTo(getPaperCoordsXY(t.clientX, t.clientY), t.clientX, t.clientY);
     }
 
     function onTouchEnd(e) {
         if (activeTouchId === null) return;
         if (findTouch(e.changedTouches, activeTouchId)) {
-            flushPendingStrokes();
+            endStroke();
             activeTouchId = null;
-            isDrawing = false;
         }
     }
 
